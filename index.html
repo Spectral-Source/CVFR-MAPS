@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Aviation Navigation WebApp</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  body, html { margin: 0; height: 100%; overflow: hidden; font-family: Arial, sans-serif; }
+  #map { width: 100%; height: 100%; }
+
+  /* Hamburger Menu Button */
+  #menu-toggle {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 1002;
+    width: 45px;
+    height: 45px;
+    background: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  #menu-toggle span {
+    display: block;
+    width: 100%;
+    height: 3px;
+    background-color: #333;
+    margin: 2px 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    border-radius: 3px;
+  }
+  #menu-toggle.active span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  #menu-toggle.active span:nth-child(2) { opacity: 0; }
+  #menu-toggle.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  /* Settings Panel */
+  #settings {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1001;
+    font-size: 14px;
+    min-width: 220px;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: transform 0.3s ease, opacity 0.3s ease, visibility 0.3s;
+  }
+  #settings.open {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(55px);
+  }
+
+  #settings h4 { margin: 0 0 10px 0; font-size: 16px; text-align: center; }
+  .setting-option { margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .setting-option label { flex-grow: 1; cursor: pointer; }
+  .setting-option input[disabled] + span { color: #999; cursor: not-allowed; }
+
+  /* Locate Button */
+  #locateBtn {
+    display: block; margin-top: 10px; width: 100%; padding: 6px; border: none;
+    border-radius: 8px; background: #0078ff; color: #fff; font-size: 14px;
+    cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); transition: background-color 0.2s;
+  }
+  #locateBtn:hover { background: #005fcc; }
+  #locateBtn.active { background: #004a99; }
+
+  /* Aircraft Icon */
+  .aircraft-img { width: 40px; height: 40px; transform-origin: center center; }
+
+  /* Visual Compass */
+  #compass-container {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 80px;
+    height: 80px;
+    display: none; /* Hidden by default */
+    z-index: 1000;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  #compass-rose {
+    width: 100%;
+    height: 100%;
+    transition: transform 0.1s linear; /* Smooth, responsive rotation */
+  }
+  #compass-pointer {
+    position: absolute;
+    top: -2px; /* Sits just above the circle */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 12px solid #d00; /* Red pointer */
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<button id="menu-toggle">
+  <span></span>
+  <span></span>
+  <span></span>
+</button>
+
+<div id="settings">
+  <h4>Navigation Options</h4>
+  <div class="setting-option"><label><input type="checkbox" id="toggleGPS"> Enable GPS</label></div>
+  <div class="setting-option"><label><input type="checkbox" id="togglePath"> Show Path</label></div>
+  <hr>
+  <div class="setting-option"><label><input type="checkbox" id="toggleCompass"> Enable Compass Sensor</label></div>
+  <div class="setting-option"><label><input type="checkbox" id="toggleCompassView" disabled> <span>Show Compass View</span></label></div>
+  <hr>
+  <div id="gps-accuracy">GPS Accuracy: -- m</div>
+  <button id="locateBtn">My Location</button>
+</div>
+
+<div id="compass-container">
+  <div id="compass-pointer"></div>
+  <img id="compass-rose" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0OCIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjNTU1IiBzdHJva2Utd2lkdGg9IjEiLz4KICAgIDxwYXRoIGQ9Ik01MCAyIEw0NSAxNSBMNTUgMTUgWiIgZmlsbD0iI2QwMCIvPgogICAgPHBhdGggZD0iTTUwIDk4IEw0NSA4NSBMNTUgODUgWiIgZmlsbD0iIzMzMyIvPgogICAgPHBhdGggZD0iTTIgNTAgTDE1IDQ1IEwxNSA1NSBaIiBmaWxsPSIjMzMzIi8+CiAgICA8cGF0aCBkPSJNOTggNTAgTDg1IDQ1IEw4NSA1NSBaIiBmaWxsPSIjMzMzIi8+CiAgICA8dGV4dCB4PSI1MCIgeT0iMjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTAiIGZvbnQtd2VpZ2h0PSJib2xkIj5OPC90ZXh0PgogICAgPHRleHQgeD0iNTAiIHk9IjgzIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjEwIj5TPC90ZXh0PgogICAgPHRleHQgeD0iMjIiIHk9IjU0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjEwIj5XPC90ZXh0PgogICAgPHRleHQgeD0iNzgiIHk9IjU0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjEwIj5FPC90ZXh0Pgo8L3N2Zz4=" alt="Compass Rose">
+</div>
+
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // --- DOM Elements ---
+  const map = L.map("map", { zoomControl: true }).setView([31.952162, 34.453125], 9);
+  const locateBtn = document.getElementById("locateBtn");
+  const menuToggle = document.getElementById('menu-toggle');
+  const settingsPanel = document.getElementById('settings');
+  const compassContainer = document.getElementById('compass-container');
+  const compassRose = document.getElementById('compass-rose');
+  const toggleCompassCheck = document.getElementById('toggleCompass');
+  const toggleCompassViewCheck = document.getElementById('toggleCompassView');
+
+  // --- Map and Aircraft Setup ---
+  L.tileLayer("{z}/{x}/{y}.png", { minZoom: 5, maxZoom: 13.9, attribution: "Map Data" }).addTo(map);
+
+  const aircraftDivIcon = L.divIcon({ html: '<img src="aircraft.png" class="aircraft-img">', iconSize: [40, 40], iconAnchor: [20, 20], className: '' });
+  const aircraftMarker = L.marker([31.952162, 34.453125], { icon: aircraftDivIcon }).addTo(map);
+
+  // --- State Variables ---
+  let pathEnabled = false, compassEnabled = false, gpsEnabled = false;
+  let polyline = null, pathCoords = [], watchId = null;
+  let currentAngle = 0, targetAngle = 0;
+  let locationLock = false;
+
+  // --- Core Functions ---
+  function animateRotation() {
+    const img = aircraftMarker.getElement()?.querySelector("img");
+    if (img) {
+      let delta = (targetAngle - currentAngle + 360) % 360;
+      if (delta > 180) delta -= 360;
+      const maxStep = 2;
+      currentAngle = Math.abs(delta) > maxStep ? (currentAngle + Math.sign(delta) * maxStep + 360) % 360 : targetAngle;
+      img.style.transform = `rotate(${currentAngle}deg)`;
+    }
+    requestAnimationFrame(animateRotation);
+  }
+
+  function enableGPS() {
+    if (watchId) return;
+    if ("geolocation" in navigator) {
+      watchId = navigator.geolocation.watchPosition((pos) => {
+        const { latitude: lat, longitude: lon, accuracy: acc, heading } = pos.coords;
+        document.getElementById("gps-accuracy").innerText = `GPS Accuracy: ${acc.toFixed(1)} m`;
+        aircraftMarker.setLatLng([lat, lon]);
+        if (locationLock) map.setView([lat, lon], map.getZoom());
+        if (pathEnabled) {
+          pathCoords.push([lat, lon]);
+          if (!polyline) polyline = L.polyline(pathCoords, { color: "blue" }).addTo(map);
+          else polyline.setLatLngs(pathCoords);
+        }
+        if (!compassEnabled && heading !== null) targetAngle = heading;
+      }, (err) => console.warn(err), { enableHighAccuracy: true });
+    }
+  }
+
+  function disableGPS() {
+    if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  }
+
+  function handleCompass(event) {
+    if (!compassEnabled) return;
+    let heading = 0;
+    if (event.webkitCompassHeading !== undefined) heading = event.webkitCompassHeading;
+    else if (event.alpha !== null) heading = (360 - event.alpha) % 360;
+    targetAngle = heading; // Set for aircraft icon's smooth rotation
+    compassRose.style.transform = `rotate(${-heading}deg)`; // Set for visual compass
+  }
+
+  // --- Event Listeners ---
+  menuToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menuToggle.classList.toggle('active');
+    settingsPanel.classList.toggle('open');
+  });
+
+  document.getElementById("toggleGPS").addEventListener("change", (e) => {
+    gpsEnabled = e.target.checked;
+    if (gpsEnabled) enableGPS(); else disableGPS();
+  });
+
+  document.getElementById("togglePath").addEventListener("change", (e) => {
+    pathEnabled = e.target.checked;
+    if (!pathEnabled && polyline) { map.removeLayer(polyline); polyline = null; pathCoords = []; }
+  });
+
+  toggleCompassCheck.addEventListener("change", (e) => {
+    compassEnabled = e.target.checked;
+    if (compassEnabled) {
+      toggleCompassViewCheck.disabled = false;
+      if (typeof DeviceOrientationEvent.requestPermission === "function") {
+        DeviceOrientationEvent.requestPermission().then(resp => {
+          if (resp === "granted") window.addEventListener("deviceorientation", handleCompass, true);
+          else { alert("Compass permission denied"); toggleCompassCheck.checked = false; compassEnabled = false; toggleCompassViewCheck.disabled = true; }
+        }).catch(console.error);
+      } else { window.addEventListener("deviceorientation", handleCompass, true); }
+    } else {
+      window.removeEventListener("deviceorientation", handleCompass, true);
+      toggleCompassViewCheck.disabled = true;
+      toggleCompassViewCheck.checked = false; // Also uncheck the view toggle
+      compassContainer.style.display = 'none'; // Hide the compass view
+    }
+  });
+
+  toggleCompassViewCheck.addEventListener('change', (e) => {
+    compassContainer.style.display = e.target.checked ? 'block' : 'none';
+  });
+
+  locateBtn.addEventListener("click", () => {
+    if (!gpsEnabled) return alert("Enable GPS first");
+    locationLock = !locationLock;
+    locateBtn.classList.toggle("active", locationLock);
+    if (locationLock) {
+      navigator.geolocation.getCurrentPosition(pos => map.setView([pos.coords.latitude, pos.coords.longitude], 13));
+    }
+  });
+
+  map.on("movestart", () => {
+    if (locationLock) { locationLock = false; locateBtn.classList.remove("active"); }
+  });
+
+  map.on('click', () => {
+    if (settingsPanel.classList.contains('open')) {
+      menuToggle.classList.remove('active');
+      settingsPanel.classList.remove('open');
+    }
+  });
+
+  // --- Initializations ---
+  requestAnimationFrame(animateRotation);
+</script>
+</body>
+</html>
